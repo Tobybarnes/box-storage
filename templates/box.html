@@ -1,69 +1,79 @@
 {% extends "base.html" %}
-
-{% block title %}{{ box_id }} - Box Storage{% endblock %}
-
+{% block title %}{{ box.display_title }} · Box {{ box.number }}{% endblock %}
 {% block content %}
-<div class="content">
-    {{ content | replace('\n', '<br>') | safe }}
-</div>
-
-<div class="actions">
-    <a href="/box/{{ box_id }}/edit" class="btn">Edit</a>
-    <a href="/box/{{ box_id }}/qr" class="btn btn-secondary" download="{{ box_id }}-qr.png">Download QR</a>
-    <form action="/box/{{ box_id }}/delete" method="post" style="display:inline" onsubmit="return confirm('Delete this box?');">
-        <button type="submit" class="btn btn-danger">Delete</button>
-    </form>
-</div>
-
-<!-- Photos Section -->
-<div class="photos-section">
-    <h3>Photos</h3>
-
-    {% if photos %}
-    <div class="photo-grid">
-        {% for photo in photos %}
-        <div class="photo-item">
-            <a href="/box/{{ box_id }}/photos/{{ photo }}" target="_blank" aria-label="View full size photo (opens in new tab)">
-                <img src="/box/{{ box_id }}/photos/{{ photo }}" alt="Photo of {{ box_id }} contents">
-            </a>
-            <form action="/box/{{ box_id }}/photos/{{ photo }}/delete" method="post" class="photo-delete">
-                <button type="submit" aria-label="Delete photo" onclick="return confirm('Delete this photo?');">&times;</button>
-            </form>
-        </div>
-        {% endfor %}
+<a class="back-link" href="{{ url_for('index') }}"><span aria-hidden="true">←</span> All boxes</a>
+<div class="page-heading box-heading">
+    <div>
+        <p class="box-reference">Box {{ box.number }}</p>
+        <h1>{{ box.display_title }}</h1>
     </div>
-    {% else %}
-    <p class="no-photos">No photos yet</p>
-    {% endif %}
-
-    <form action="/box/{{ box_id }}/photos" method="post" enctype="multipart/form-data" class="photo-upload" id="photo-form">
-        <input type="file" name="photo" accept="image/*" id="photo-input">
-        <label for="photo-input" class="btn btn-secondary" id="photo-label">Add Photo</label>
-        <div id="photo-preview" style="display:none;">
-            <img id="preview-img" src="" alt="Preview">
-            <button type="submit" class="btn">Upload</button>
-        </div>
-    </form>
-    <script>
-        document.getElementById('photo-input').addEventListener('change', function() {
-            if (this.files.length > 0) {
-                var file = this.files[0];
-                var reader = new FileReader();
-                reader.onload = function(e) {
-                    document.getElementById('preview-img').src = e.target.result;
-                    document.getElementById('photo-preview').style.display = 'flex';
-                    document.getElementById('photo-label').textContent = 'Change';
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-    </script>
+    <a href="{{ url_for('edit_box', box_id=box_id) }}" class="button button-primary">Edit box</a>
 </div>
-
-<div class="qr-section">
-    <h3>QR Code</h3>
-    <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR Code for {{ box_id }}">
-    <div class="qr-url">{{ qr_url }}</div>
-    <p style="color:#666; font-size:0.9rem; margin-top:15px;">Print and stick on your box</p>
+<div class="box-layout">
+    <div class="box-main">
+        <article class="markdown-content box-document" aria-label="Box contents">
+            {% if rendered_content|trim %}{{ rendered_content|safe }}{% else %}<p class="muted">No notes yet. Edit this box to add what’s inside.</p>{% endif %}
+        </article>
+        <section class="photos-section" aria-labelledby="photos-heading">
+            <div class="section-heading">
+                <h2 id="photos-heading">Photos{% if photos %} <span class="count">{{ photos|length }}</span>{% endif %}</h2>
+            </div>
+            {% if photos %}
+            <div class="photo-strip">
+                {% for photo in photos %}
+                <a class="photo-link" href="{{ url_for('get_photo', box_id=box_id, filename=photo) }}" target="_blank" rel="noopener" aria-label="Open photo {{ loop.index }} of box {{ box.number }} at full size in a new tab">
+                    <img src="{{ url_for('get_photo', box_id=box_id, filename=photo, thumbnail=1) }}" alt="Photo {{ loop.index }} of box {{ box.number }}" loading="lazy">
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted small">A photo can help you recognise this box.</p>
+            {% endif %}
+            <details class="add-photo">
+                <summary class="disclosure-action">Add a photo</summary>
+                <form action="{{ url_for('upload_photo', box_id=box_id) }}" method="post" enctype="multipart/form-data" class="photo-upload" id="photo-form">
+                    <label for="photo-input">Choose a photo</label>
+                    <input type="file" name="photo" accept="image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp" id="photo-input" aria-describedby="photo-help" required>
+                    <p id="photo-help" class="field-hint">JPG, PNG, WebP or GIF, up to 16 MB.</p>
+                    <div class="photo-preview" id="photo-preview" hidden><img id="preview-img" alt="Selected photo preview"><span id="preview-name"></span></div>
+                    <button type="submit" class="button button-primary" id="upload-button">Upload photo</button>
+                </form>
+            </details>
+        </section>
+        <details class="manage-box">
+            <summary>Manage this box</summary>
+            <div class="management-content">
+                {% if photos %}
+                <h3>Remove a photo</h3>
+                <ul class="photo-management-list">
+                    {% for photo in photos %}
+                    <li>
+                        <img src="{{ url_for('get_photo', box_id=box_id, filename=photo, thumbnail=1) }}" alt="" loading="lazy">
+                        <span>Photo {{ loop.index }}</span>
+                        <form action="{{ url_for('delete_photo', box_id=box_id, filename=photo) }}" method="post" onsubmit="return confirm('Permanently delete photo {{ loop.index }} from this box? This cannot be undone.');">
+                            <button type="submit" class="button button-danger-quiet">Delete photo {{ loop.index }}</button>
+                        </form>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                <div class="delete-box-section">
+                    <h3>Delete this box</h3>
+                    <p class="field-hint">This permanently deletes the box notes and all its photos.</p>
+                    <form action="{{ url_for('delete_box', box_id=box_id) }}" method="post" onsubmit="return confirm('Permanently delete this box and all its photos? This cannot be undone.');">
+                        <button type="submit" class="button button-danger-quiet">Delete box {{ box.number }}</button>
+                    </form>
+                </div>
+            </div>
+        </details>
+    </div>
+    <aside class="box-label" aria-labelledby="box-label-heading">
+        <h2 id="box-label-heading">Box label</h2>
+        <img class="box-qr" src="data:image/png;base64,{{ qr_base64 }}" alt="QR code linking to box {{ box.number }}">
+        <p class="small muted">Scan to see what’s inside.</p>
+        <a href="{{ url_for('labels', box=box_id) }}" class="button button-secondary">Print this label</a>
+        <a href="{{ url_for('download_qr', box_id=box_id) }}" class="text-link" download="{{ box_id }}-qr.png">Download QR image</a>
+    </aside>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='photos.js') }}" defer></script>{% endblock %}

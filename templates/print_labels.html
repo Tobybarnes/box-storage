@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Label preview · Box Storage{% endblock %}
+{% block body_class %}print-preview-page paper-{{ paper }}{% endblock %}
+{% block main_class %}print-main{% endblock %}
+{% block head %}<style>@page { size: {% if paper == 'a4' %}A4{% else %}letter{% endif %} portrait; margin: 0; }</style>{% endblock %}
+{% block content %}
+<div class="print-toolbar no-print">
+    <div><a class="back-link" href="{{ url_for('labels', box=request.args.getlist('box')) }}"><span aria-hidden="true">←</span> Choose boxes</a><h1>Ready to print</h1><p class="page-description">{{ pages|length }} sheet{% if pages|length != 1 %}s{% endif %} · {% if paper == 'a4' %}A4{% else %}US Letter{% endif %} · {{ copies }} cop{% if copies == 1 %}y{% else %}ies{% endif %} per box</p></div>
+    <button type="button" class="button button-primary" id="print-button">Print or save PDF</button>
+    <p class="print-instructions">Choose {% if paper == 'a4' %}A4{% else %}US Letter{% endif %} paper, print at 100% scale, and turn off headers and footers.</p>
+    <p class="error-message" id="print-warning" role="alert" hidden></p>
+    <noscript><p class="field-hint">Use your browser’s Print command to print these labels or save them as a PDF.</p></noscript>
+</div>
+<div class="print-sheets">
+    {% for page in pages %}
+    <div class="print-sheet-frame">
+    <section class="print-page" aria-label="Label sheet {{ loop.index }}">
+        {% for label in page %}
+        <article class="print-label" aria-label="Label for {{ label.id }}">
+            <div class="label-number"><span>Box</span> {{ label.number }}</div>
+            <div class="label-title">{{ label.title }}</div>
+            <div class="label-bottom"><span class="label-hint">Scan for<br>contents</span><img src="data:image/png;base64,{{ label.qr_base64 }}" width="152" height="152" alt="QR code for {{ label.id }}"></div>
+        </article>
+        {% endfor %}
+        {% for blank in range(6 - page|length) %}<div class="print-label blank-label" aria-hidden="true"></div>{% endfor %}
+    </section>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='print.js') }}" defer></script>{% endblock %}

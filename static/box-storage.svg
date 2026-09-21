@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <title>Box Storage</title>
+  <rect width="64" height="64" rx="14" fill="#2354a3"/>
+  <path d="m32 12 19 10-19 10-19-10 19-10Z" fill="#f8f7f2"/>
+  <path d="m13 25 17.5 9.2V53L13 43.8V25Zm20.5 9.2L51 25v18.8L33.5 53V34.2Z" fill="#f8f7f2"/>
+  <path d="m22 17.3 4.5-2.4 19 10-4.5 2.4-19-10ZM41 30.3l4.5-2.4V37l-2.3-1-2.2 3v-8.7ZM18 34l7 3.6v3.2l-7-3.6V34Z" fill="#2354a3"/>
+</svg>

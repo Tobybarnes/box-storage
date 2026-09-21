@@ -1,36 +1,33 @@
 {% extends "base.html" %}
-
-{% block title %}Search: {{ query }} - Box Storage{% endblock %}
-
+{% block title %}Find a box · Box Storage{% endblock %}
 {% block content %}
-<h2>Search Results{% if query %} for "{{ query }}"{% endif %}</h2>
-
+<a class="back-link" href="{{ url_for('index') }}"><span aria-hidden="true">←</span> All boxes</a>
+<div class="page-heading"><h1>Find a box</h1></div>
+<form action="{{ url_for('search') }}" method="get" class="search-form search-form-large" role="search">
+    <label for="search-input" class="sr-only">Search box names and notes</label>
+    <svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 4.25 4.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <input type="search" name="q" id="search-input" placeholder="Try a box number or a word like photos" value="{{ query }}" enterkeyhint="search">
+    <button type="submit" class="search-submit" aria-label="Search boxes">↵</button>
+</form>
 {% if results %}
-<ul class="box-list">
+<p class="search-result-count">{{ results|length }} box{% if results|length != 1 %}es{% endif %} found</p>
+<ul class="box-list search-results">
     {% for box in results %}
     <li>
-        <a href="/box/{{ box.id }}">
-            <div class="box-title">{{ box.title }}</div>
-            <div class="box-id">{{ box.id }}</div>
-            {% if box.preview %}
-            <div style="color:#666; font-size:0.85rem; margin-top:5px;">
-                {% for line in box.preview %}
-                <div>...{{ line }}...</div>
-                {% endfor %}
-            </div>
-            {% endif %}
+        <a class="box-row" href="{{ url_for('view_box', box_id=box.id) }}">
+            <span class="box-number"><span class="sr-only">Box </span>{{ box.number }}</span>
+            <span class="box-summary">
+                <span class="box-title">{{ box.display_title }}</span>
+                {% if box.preview %}<span class="search-excerpt">{% for line in box.preview %}<span>{{ line }}</span>{% endfor %}</span>{% endif %}
+            </span>
+            <span class="row-arrow" aria-hidden="true">→</span>
         </a>
     </li>
     {% endfor %}
 </ul>
-<p style="color:#666;">Found {{ results|length }} box{% if results|length != 1 %}es{% endif %}</p>
 {% elif query %}
-<div class="empty">
-    <p>No boxes found matching "{{ query }}"</p>
-</div>
+<div class="empty-state"><h2>No boxes found for “{{ query }}”.</h2><p>Try a shorter word, or browse your boxes.</p><a href="{{ url_for('index') }}" class="button button-secondary">Browse all boxes</a></div>
 {% else %}
-<div class="empty">
-    <p>Enter a search term above</p>
-</div>
+<p class="muted search-prompt">Search the names and notes you’ve added to your boxes.</p>
 {% endif %}
 {% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Print labels · Box Storage{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('index') }}"><span aria-hidden="true">←</span> All boxes</a>
+<div class="page-heading"><div><h1>Print labels</h1><p class="page-description">A name and a QR code, ready to cut out and stick on.</p></div></div>
+{% if error %}<p class="error-message" role="alert">{{ error }}</p>{% endif %}
+{% if boxes %}
+<form action="{{ url_for('label_print') }}" method="get" id="labels-form">
+    <div class="labels-layout">
+        <fieldset class="label-selection">
+            <legend class="sr-only">Choose boxes to print</legend>
+            <div class="selection-heading"><label class="select-all-label"><input type="checkbox" id="select-all"{% if selected_ids|length == boxes|length %} checked{% endif %}> <span>Select all boxes</span></label><span class="small muted" id="selection-count" aria-live="polite">{{ selected_ids|length }} selected</span></div>
+            <ul class="label-selection-list">
+                {% for box in boxes %}
+                <li><label class="selection-row">
+                    <input type="checkbox" name="box" value="{{ box.id }}"{% if box.id in selected_ids %} checked{% endif %}>
+                    <span class="box-number"><span class="sr-only">Box </span>{{ box.number }}</span>
+                    <span class="box-title">{{ box.display_title }}</span>
+                </label></li>
+                {% endfor %}
+            </ul>
+        </fieldset>
+        <aside class="print-options" aria-labelledby="print-options-heading">
+            <h2 id="print-options-heading">Page setup</h2>
+            <div class="form-field"><label for="paper">Paper size</label><select name="paper" id="paper"><option value="letter">US Letter · 8½ × 11 in</option><option value="a4">A4 · 210 × 297 mm</option></select></div>
+            <div class="form-field"><label for="copies">Copies of each label</label><select name="copies" id="copies"><option value="1">1 copy</option><option value="2">2 copies</option><option value="3">3 copies</option><option value="4">4 copies</option></select><p class="field-hint">Two copies lets you label two sides of a box.</p></div>
+            <p class="print-layout-note">Six labels per sheet, with cutting lines.</p>
+            <button type="submit" class="button button-primary" id="preview-labels-button">Preview labels</button>
+            <p class="label-total small muted" id="label-total" aria-live="polite">{{ selected_ids|length }} label{% if selected_ids|length != 1 %}s{% endif %}</p>
+        </aside>
+    </div>
+</form>
+{% else %}
+<div class="empty-state"><h2>Add a box first.</h2><p>Once it has a name, you can print its label here.</p><a href="{{ url_for('new_box') }}" class="button button-primary">Add a box</a></div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='labels.js') }}" defer></script>{% endblock %}

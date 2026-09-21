@@ -1,24 +1,42 @@
 {% extends "base.html" %}
-
-{% block title %}All Boxes - Box Storage{% endblock %}
-
+{% block title %}Our boxes · Box Storage{% endblock %}
 {% block content %}
+<div class="page-heading">
+    <div>
+        <h1>Our boxes</h1>
+        <p class="page-description">A little reminder of what’s inside.</p>
+    </div>
+</div>
+<div class="collection-toolbar">
+    <p class="collection-count">{{ boxes|length }} box{% if boxes|length != 1 %}es{% endif %}</p>
+    <form action="{{ url_for('search') }}" method="get" class="search-form" role="search">
+        <label for="search-input" class="sr-only">Find a box</label>
+        <svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.75" stroke="currentColor" stroke-width="1.5"/><path d="m13 13 4.25 4.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <input type="search" name="q" id="search-input" placeholder="Find a box" enterkeyhint="search">
+        <button type="submit" class="search-submit" aria-label="Search boxes">↵</button>
+    </form>
+</div>
 {% if boxes %}
 <ul class="box-list">
     {% for box in boxes %}
     <li>
-        <a href="/box/{{ box.id }}">
-            <div class="box-title">{{ box.title }}</div>
-            <div class="box-id">{{ box.id }}</div>
-            <div class="box-date">Updated {{ box.modified.strftime('%d %b %Y, %H:%M') }}</div>
+        <a class="box-row" href="{{ url_for('view_box', box_id=box.id) }}">
+            <span class="box-number"><span class="sr-only">Box </span>{{ box.number }}</span>
+            <span class="box-summary">
+                <span class="box-title">{{ box.display_title }}</span>
+                <span class="box-meta">Updated {{ box.modified.strftime('%d %b %Y') }}{% if box.photo_count %}<span aria-hidden="true"> · </span>{{ box.photo_count }} photo{% if box.photo_count != 1 %}s{% endif %}{% endif %}</span>
+            </span>
+            {% if box.thumbnail_url %}<img class="box-thumbnail" src="{{ box.thumbnail_url }}" alt="" loading="lazy">{% endif %}
+            <span class="row-arrow" aria-hidden="true">→</span>
         </a>
     </li>
     {% endfor %}
 </ul>
 {% else %}
-<div class="empty">
-    <p>No boxes yet.</p>
-    <a href="/new" class="btn">Create your first box</a>
+<div class="empty-state">
+    <h2>Start with one box.</h2>
+    <p>Give it a name and jot down what’s inside. You can add a photo, too.</p>
+    <a href="{{ url_for('new_box') }}" class="button button-primary">Add your first box</a>
 </div>
 {% endif %}
 {% endblock %}

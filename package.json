@@ -1,0 +1,20 @@
+{
+  "name": "box-storage-editor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild static/editor.js --bundle --minify --format=iife --target=safari16.4,chrome110 --supported:template-literal=false --outfile=static/editor.bundle.js",
+    "test": "node --test tests/editor.test.mjs"
+  },
+  "dependencies": {
+    "@tiptap/core": "3.31.3",
+    "@tiptap/markdown": "3.31.3",
+    "@tiptap/pm": "3.31.3",
+    "@tiptap/starter-kit": "3.31.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "jsdom": "30.0.1",
+    "markdown-it": "15.0.2"
+  }
+}

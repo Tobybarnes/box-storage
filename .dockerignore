@@ -6,3 +6,5 @@ __pycache__/
 boxes/
 start.sh
 .git/
+node_modules/
+tests/
