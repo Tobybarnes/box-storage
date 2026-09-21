@@ -2,11 +2,15 @@
 
 import base64
 from datetime import datetime
+import fcntl
+from hashlib import sha256
 import io
 from html.parser import HTMLParser
+import json
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
 import tempfile
 from urllib.parse import quote
@@ -20,11 +24,12 @@ import qrcode
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['MAX_PHOTO_ROTATION_PIXELS'] = 32_000_000
 app.config['PUBLIC_BASE_URL'] = os.environ.get(
     'PUBLIC_BASE_URL', 'https://box-storage.fly.dev'
 ).rstrip('/')
 
-VERSION = "2.02"
+VERSION = "2.03"
 BUILD_DATE = "2026-09-21"
 
 
@@ -37,6 +42,7 @@ def inject_version():
 DATA_DIR = Path(os.environ.get('DATA_PATH', Path(__file__).parent))
 BOXES_DIR = DATA_DIR / 'boxes'
 PHOTOS_DIR = DATA_DIR / 'photos'
+PHOTO_EDITS_DIR = DATA_DIR / 'photo-edits'
 BOXES_DIR.mkdir(parents=True, exist_ok=True)
 PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -132,7 +138,7 @@ def _box_metadata(box_id, content, modified=None):
     suffix = re.search(r'(\d+)$', box_id)
     photos = get_box_photos(box_id)
     thumbnail_url = (
-        f'/box/{quote(box_id, safe="")}/photos/{quote(photos[0], safe="")}?thumbnail=1'
+        photo_src(box_id, photos[0], thumbnail=True)
         if photos else None
     )
     return {
@@ -483,6 +489,170 @@ def _photo_file(box_id, filename):
     return PHOTOS_DIR / box_id / filename
 
 
+def _photo_edit_location(box_id, filename):
+    _photo_file(box_id, filename)
+    key = sha256(filename.encode('utf-8')).hexdigest()
+    return PHOTO_EDITS_DIR / box_id, key
+
+
+def _read_photo_edit(box_id, filename, *, strict=False):
+    folder, key = _photo_edit_location(box_id, filename)
+    original = {'rotation': 0, 'revision': None}
+    try:
+        state = json.loads((folder / f'{key}.json').read_text(encoding='utf-8'))
+        if not isinstance(state, dict) or type(state.get('rotation')) is not int or state['rotation'] not in range(4):
+            raise ValueError('Invalid saved photo rotation.')
+        if not isinstance(state.get('revision'), str) or not re.fullmatch(r'[0-9a-f]{32}', state['revision']):
+            raise ValueError('Invalid saved photo revision.')
+        if state['rotation'] and not (folder / f'{key}-{state["revision"]}.png').is_file():
+            raise ValueError('The saved photo image is missing.')
+        return {'rotation': state['rotation'], 'revision': state['revision']}
+    except FileNotFoundError:
+        return original
+    except (OSError, ValueError):
+        if strict:
+            raise
+        # A damaged edit cannot make the original photograph inaccessible.
+        return original
+
+
+@app.template_global()
+def photo_src(box_id, filename, thumbnail=False):
+    state = _read_photo_edit(box_id, filename)
+    path = f'/box/{quote(box_id, safe="")}/photos/{quote(filename, safe="")}'
+    query = ['thumbnail=1'] if thumbnail else []
+    if state['revision']:
+        query.append(f'v={state["revision"]}')
+    return path + ('?' + '&'.join(query) if query else '')
+
+
+def _saved_photo_path(box_id, filename):
+    state = _read_photo_edit(box_id, filename)
+    if state['rotation']:
+        folder, key = _photo_edit_location(box_id, filename)
+        return folder / f'{key}-{state["revision"]}.png'
+    return _photo_file(box_id, filename)
+
+
+class PhotoRotationError(ValueError):
+    def __init__(self, message, status=422):
+        super().__init__(message)
+        self.status = status
+
+
+def _rotated_original(photo_path, rotation):
+    """Decode the original once; PNG preserves the resulting pixels losslessly."""
+    try:
+        with Image.open(photo_path) as source:
+            if source.format in {'GIF', 'WEBP', 'PNG'} and getattr(source, 'is_animated', False):
+                raise PhotoRotationError('Animated photos cannot be rotated. The original is unchanged.')
+            if source.width * source.height > app.config['MAX_PHOTO_ROTATION_PIXELS']:
+                raise PhotoRotationError('This photo is too large to rotate safely. The original is unchanged.', 413)
+            source.load()
+            with ImageOps.exif_transpose(source) as oriented:
+                mode = 'RGBA' if 'A' in oriented.getbands() or 'transparency' in oriented.info else 'RGB'
+                pixels = oriented.convert(mode)
+        operations = {
+            1: Image.Transpose.ROTATE_270,
+            2: Image.Transpose.ROTATE_180,
+            3: Image.Transpose.ROTATE_90,
+        }
+        if rotation:
+            rotated = pixels.transpose(operations[rotation])
+            pixels.close()
+            return rotated
+        return pixels
+    except PhotoRotationError:
+        raise
+    except (OSError, ValueError, Image.DecompressionBombError) as error:
+        raise PhotoRotationError('This image could not be opened. The original is unchanged.') from error
+
+
+def _atomic_photo_edit(path, write):
+    temporary_name = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode='wb', prefix=f'.{path.stem}-', suffix='.tmp', dir=path.parent, delete=False
+        ) as temporary:
+            temporary_name = temporary.name
+            write(temporary)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        os.replace(temporary_name, path)
+    finally:
+        if temporary_name is not None:
+            Path(temporary_name).unlink(missing_ok=True)
+
+
+def _write_photo_rotation(box_id, filename, rotation, image):
+    folder, key = _photo_edit_location(box_id, filename)
+    folder.mkdir(parents=True, exist_ok=True)
+    state = {'rotation': rotation, 'revision': uuid4().hex}
+    derivative = folder / f'{key}-{state["revision"]}.png' if rotation else None
+    try:
+        if derivative is not None:
+            _atomic_photo_edit(derivative, lambda output: image.save(output, format='PNG', exif=b''))
+        # Publish the new state only after its complete image is available.
+        state_bytes = json.dumps(state, sort_keys=True).encode('utf-8')
+        _atomic_photo_edit(folder / f'{key}.json', lambda output: output.write(state_bytes))
+    except Exception:
+        if derivative is not None:
+            derivative.unlink(missing_ok=True)
+        raise
+    # Only obsolete generated images are discarded; originals are never here.
+    for previous in folder.glob(f'{key}-*.png'):
+        if previous != derivative:
+            try:
+                previous.unlink()
+            except OSError:
+                app.logger.warning('Could not remove an obsolete photo derivative: %s', previous)
+    return state
+
+
+def _delete_photo_edits(box_id, filename):
+    folder, key = _photo_edit_location(box_id, filename)
+    (folder / f'{key}.json').unlink(missing_ok=True)
+    for derivative in folder.glob(f'{key}-*.png'):
+        derivative.unlink()
+    if folder.is_dir() and not any(folder.iterdir()):
+        folder.rmdir()
+
+
+@app.route('/box/<box_id>/photos/<filename>/rotate', methods=['POST'])
+def rotate_photo(box_id, filename):
+    if not _safe_component(box_id) or not _safe_component(filename):
+        return jsonify(error='Photo not found.'), 404
+    photo_path = _photo_file(box_id, filename)
+    if not _box_file(box_id).is_file() or not photo_path.is_file() or not allowed_file(filename):
+        return jsonify(error='Photo not found.'), 404
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or any(
+        type(payload.get(field)) is not int or payload[field] not in range(4)
+        for field in ('rotation', 'expected_rotation')
+    ):
+        return jsonify(error='Choose a rotation from 0 to 3 and include the previous saved rotation.'), 400
+    try:
+        # A read-only descriptor provides a cross-worker lock without creating a
+        # lock file or modifying the original image's bytes or modification time.
+        with photo_path.open('rb') as original_lock:
+            fcntl.flock(original_lock.fileno(), fcntl.LOCK_EX)
+            state = _read_photo_edit(box_id, filename, strict=True)
+            if payload['expected_rotation'] != state['rotation']:
+                return jsonify(
+                    error='This photo was changed elsewhere. Reload it before saving another rotation.',
+                    rotation=state['rotation'], photo_url=photo_src(box_id, filename),
+                ), 409
+            with _rotated_original(photo_path, payload['rotation']) as image:
+                if payload['rotation'] != state['rotation']:
+                    state = _write_photo_rotation(box_id, filename, payload['rotation'], image)
+            return jsonify(rotation=state['rotation'], photo_url=photo_src(box_id, filename))
+    except PhotoRotationError as error:
+        return jsonify(error=str(error)), error.status
+    except (OSError, ValueError):
+        app.logger.exception('Could not save a photo rotation.')
+        return jsonify(error='The rotation could not be saved. Your original photo and notes are unchanged.'), 500
+
+
 def _photo_thumbnail(photo_path):
     """Create a small display copy in memory; the original file is only read."""
     source_stat = photo_path.stat()
@@ -522,9 +692,14 @@ def get_photo(box_id, filename):
     photo_path = _photo_file(box_id, filename)
     if not photo_path.is_file():
         abort(404)
-    if request.args.get('thumbnail') == '1':
-        return _photo_thumbnail(photo_path)
-    return send_file(photo_path)
+    with photo_path.open('rb') as original_lock:
+        fcntl.flock(original_lock.fileno(), fcntl.LOCK_SH)
+        photo_path = _saved_photo_path(box_id, filename)
+        if request.args.get('thumbnail') == '1':
+            return _photo_thumbnail(photo_path)
+        # send_file opens its response file here, before this lock is released.
+        # That open descriptor stays readable if a later save retires the PNG.
+        return send_file(photo_path)
 
 
 @app.route('/box/<box_id>/photos/<filename>/view')
@@ -539,7 +714,9 @@ def view_photo(box_id, filename):
     )
     return render_template(
         'photo.html', box_id=box_id, box=box,
-        photo_url=url_for('get_photo', box_id=box_id, filename=filename),
+        photo_url=photo_src(box_id, filename),
+        photo_rotation=_read_photo_edit(box_id, filename)['rotation'],
+        rotation_url=url_for('rotate_photo', box_id=box_id, filename=filename),
         photo_number=photos.index(filename) + 1, photo_count=len(photos),
     )
 
@@ -549,6 +726,7 @@ def delete_photo(box_id, filename):
     photo_path = _photo_file(box_id, filename)
     if photo_path.is_file():
         photo_path.unlink()
+    _delete_photo_edits(box_id, filename)
     return redirect(url_for('view_box', box_id=box_id))
 
 
@@ -563,6 +741,9 @@ def delete_box(box_id):
             if photo.is_file():
                 photo.unlink()
         box_photos_dir.rmdir()
+    edits_dir = PHOTO_EDITS_DIR / box_id
+    if edits_dir.is_dir():
+        shutil.rmtree(edits_dir)
     return redirect(url_for('index'))
 
 

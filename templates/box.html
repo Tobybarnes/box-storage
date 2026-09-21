@@ -22,7 +22,7 @@
             <div class="photo-strip">
                 {% for photo in photos %}
                 <a class="photo-link" href="{{ url_for('view_photo', box_id=box_id, filename=photo) }}" aria-label="Open photo {{ loop.index }} of box {{ box.number }} at full size">
-                    <img src="{{ url_for('get_photo', box_id=box_id, filename=photo, thumbnail=1) }}" alt="Photo {{ loop.index }} of box {{ box.number }}" loading="lazy">
+                    <img src="{{ photo_src(box_id, photo, thumbnail=True) }}" alt="Photo {{ loop.index }} of box {{ box.number }}" loading="lazy">
                 </a>
                 {% endfor %}
             </div>
@@ -48,7 +48,7 @@
                 <ul class="photo-management-list">
                     {% for photo in photos %}
                     <li>
-                        <img src="{{ url_for('get_photo', box_id=box_id, filename=photo, thumbnail=1) }}" alt="" loading="lazy">
+                        <img src="{{ photo_src(box_id, photo, thumbnail=True) }}" alt="" loading="lazy">
                         <span>Photo {{ loop.index }}</span>
                         <form action="{{ url_for('delete_photo', box_id=box_id, filename=photo) }}" method="post" onsubmit="return confirm('Permanently delete photo {{ loop.index }} from this box? This cannot be undone.');">
                             <button type="submit" class="button button-danger-quiet">Delete photo {{ loop.index }}</button>

@@ -4,6 +4,13 @@
 
 No changes recorded yet.
 
+## [2.03] - 2026-09-21
+
+- Photo rotation now saves automatically. Reopening a photo and viewing its thumbnail use the saved orientation.
+- Reset restores the original orientation. Every rotation starts from the untouched original and saves a separate image, avoiding repeated compression.
+- Added saving feedback and recovery for failed saves. Existing phone photos with embedded auxiliary images are supported.
+- Changed headings to Helvetica Neue/Helvetica at bold weight, with Arial as the fallback.
+
 ## [2.02] - 2026-09-21
 
 First documented release, collecting the updates shipped on this date:
@@ -18,5 +25,6 @@ First documented release, collecting the updates shipped on this date:
 
 Existing box IDs, URLs, Markdown files, and original photos remain in place. Earlier changes are recorded in the repository's commit history.
 
-[Unreleased]: https://github.com/Tobybarnes/box-storage/compare/v2.02...HEAD
+[Unreleased]: https://github.com/Tobybarnes/box-storage/compare/v2.03...HEAD
+[2.03]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.03
 [2.02]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.02

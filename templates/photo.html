@@ -16,14 +16,13 @@
 <figure class="photo-viewer-figure">
     <img class="photo-viewer-image" src="{{ photo_url }}" alt="Photo {{ photo_number }} of box {{ box.number }}: {{ box.display_title }}">
 </figure>
-<div class="photo-viewer-controls" hidden>
+<div class="photo-viewer-controls" data-rotation-url="{{ rotation_url }}" data-photo-rotation="{{ photo_rotation }}" hidden>
     <div class="photo-rotation-buttons" role="group" aria-label="Photo rotation">
         <button type="button" class="button button-secondary" data-photo-rotate="-1">Rotate left</button>
         <button type="button" class="button button-secondary" data-photo-rotate="1">Rotate right</button>
         <button type="button" class="button button-secondary" data-photo-reset disabled>Reset</button>
     </div>
-    <p class="photo-viewer-hint">Rotation changes this view only.</p>
-    <span id="photo-rotation-status" class="sr-only" role="status" aria-live="polite"></span>
+    <p id="photo-rotation-status" class="photo-viewer-hint" role="status" aria-live="polite">Rotation saves automatically.</p>
 </div>
 {% endblock %}
 {% block site_footer %}{% endblock %}

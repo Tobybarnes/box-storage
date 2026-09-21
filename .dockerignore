@@ -4,6 +4,7 @@ __pycache__/
 .DS_Store
 *.md
 boxes/
+photo-edits/
 start.sh
 .git/
 node_modules/
