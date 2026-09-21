@@ -34,15 +34,23 @@
         <label for="content">Box title and notes</label>
         <textarea name="content" id="content" spellcheck="true" autocapitalize="sentences">
 {{ content }}</textarea>
-        <noscript><p class="field-hint">Enable JavaScript for visual editing. You can still edit the original text here.</p></noscript>
+        <noscript><p class="field-hint">Enable JavaScript for visual editing and automatic saving. You can still edit the original text here.</p></noscript>
     </div>
     <div class="editor-actions">
         <button type="submit" class="button button-primary" id="save-button">{% if is_new %}Create box{% else %}Save changes{% endif %}</button>
-        <a class="button button-quiet" href="{% if is_new %}{{ url_for('index') }}{% else %}{{ url_for('view_box', box_id=box_id) }}{% endif %}">Cancel</a>
-        <span class="save-note">{% if is_new %}Added when you save.{% else %}Photos stay attached to this box.{% endif %}</span>
+        <a id="editor-done" class="button button-quiet" href="{% if is_new %}{{ url_for('index') }}{% else %}{{ url_for('view_box', box_id=box_id) }}{% endif %}">{% if is_new %}Cancel{% else %}Done{% endif %}</a>
+        <button type="button" class="button button-quiet" id="retry-save" hidden>Retry</button>
+        <span class="save-note">{% if is_new %}Added when you create the box.{% else %}Text saves automatically. Photos stay attached.{% endif %}</span>
     </div>
     <p class="error-message save-error" id="save-error" role="alert" hidden></p>
+    <div class="save-conflict" id="save-conflict" hidden>
+        <details><summary>Review saved text</summary><pre id="saved-conflict-text"></pre></details>
+        <div class="editor-actions">
+            <button type="button" class="button button-primary" id="keep-my-text">Use my text</button>
+            <button type="button" class="button button-secondary" id="use-saved-text">Use saved text</button>
+        </div>
+    </div>
 </form>
 <script type="application/json" id="editor-data">{{ editor|tojson }}</script>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='editor.bundle.js', v='rich-1') }}" defer></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='editor.bundle.js', v=version) }}" defer></script>{% endblock %}

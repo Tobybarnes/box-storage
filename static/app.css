@@ -179,6 +179,9 @@ details[open] > .disclosure-action::before { content: "−"; }
 .format-toolbar button[data-command="undo"], .format-toolbar button[data-command="redo"] { min-width: 40px; padding-left: 7px; padding-right: 7px; font-size: 1.3rem; line-height: 1; }
 .editor-status { min-height: 1.5em; margin-top: 10px; }
 .save-error { margin-top: 20px; }
+.save-conflict summary { display: flex; align-items: center; min-height: 44px; color: var(--accent); text-wrap: balance; }
+.save-conflict pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 16px; background: var(--surface); font: inherit; font-size: .875rem; }
+.save-conflict .editor-actions { flex-wrap: wrap; margin-top: 12px; }
 .source-fallback textarea { border: 1px solid var(--line) !important; border-radius: var(--radius) !important; }
 .editor-topline { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 12px; }
 .editor-topline .field-hint { margin: 0; font-size: .8125rem; }

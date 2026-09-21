@@ -4,6 +4,13 @@
 
 No changes recorded yet.
 
+## [2.04] - 2026-09-21
+
+- Existing box titles and notes save automatically after typing pauses, with saving and saved feedback. Done and other in-app links finish pending saves before leaving.
+- Unsaved drafts are kept on the same device when browser storage is available. Connection failures show a retry option; conflicting edits let you review the saved text before choosing which version to keep.
+- Saves preserve untouched text and line endings, and detect stale edits before replacing a note. Photos remain attached and unchanged.
+- New boxes still use Create box. A manual save remains available if JavaScript cannot load.
+
 ## [2.03] - 2026-09-21
 
 - Photo rotation now saves automatically. Reopening a photo and viewing its thumbnail use the saved orientation.
@@ -25,6 +32,7 @@ First documented release, collecting the updates shipped on this date:
 
 Existing box IDs, URLs, Markdown files, and original photos remain in place. Earlier changes are recorded in the repository's commit history.
 
-[Unreleased]: https://github.com/Tobybarnes/box-storage/compare/v2.03...HEAD
+[Unreleased]: https://github.com/Tobybarnes/box-storage/compare/v2.04...HEAD
+[2.04]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.04
 [2.03]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.03
 [2.02]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.02

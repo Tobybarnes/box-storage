@@ -1,6 +1,7 @@
 """A small, file-based inventory for the boxes in our storage unit."""
 
 import base64
+from contextlib import contextmanager
 from datetime import datetime
 import fcntl
 from hashlib import sha256
@@ -29,7 +30,7 @@ app.config['PUBLIC_BASE_URL'] = os.environ.get(
     'PUBLIC_BASE_URL', 'https://box-storage.fly.dev'
 ).rstrip('/')
 
-VERSION = "2.03"
+VERSION = "2.04"
 BUILD_DATE = "2026-09-21"
 
 
@@ -90,6 +91,22 @@ def get_box_content(box_id):
 def _normalise_browser_newlines(content):
     # Browsers normalise textarea line endings when submitting a form.
     return content.replace('\r\n', '\n').replace('\r', '\n')
+
+
+def _content_revision(content):
+    return sha256(content.encode('utf-8')).hexdigest() if content is not None else None
+
+
+@contextmanager
+def _boxes_write_lock():
+    # The directory survives atomic note replacements, unlike a note's inode.
+    # flock needs no persistent lock file and coordinates separate workers.
+    descriptor = os.open(BOXES_DIR, os.O_RDONLY)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(descriptor)
 
 
 def save_box_content(box_id, content, *, create_only=False):
@@ -198,7 +215,7 @@ def _plain_title(value):
     return ''.join(parser.parts)
 
 
-def editor_data(box_id, content):
+def editor_data(box_id, content, *, is_new=False):
     """Keep exact source slices so visual editing need not rewrite untouched text."""
     match = re.match(
         r'\A\ufeff?(?:[ \t]*(?:\r\n|\n|\r))* {0,3}#[ \t]+(?P<title>[^\r\n]*)(?P<eol>\r\n|\n|\r|$)',
@@ -207,6 +224,7 @@ def editor_data(box_id, content):
     data = {
         'source': content, 'title': '', 'head': '', 'body': content,
         'titlePrefix': '# ', 'titleSuffix': '\n', 'newline': '\n',
+        'revision': None if is_new else _content_revision(content),
     }
     if match:
         raw_title = match.group('title')
@@ -269,7 +287,7 @@ def _recover_new_box_draft(content):
         ), 409
     return render_template(
         'edit.html', box=_box_metadata(box_id, content), box_id=box_id,
-        content=content, editor=editor_data(box_id, content), is_new=True,
+        content=content, editor=editor_data(box_id, content, is_new=True), is_new=True,
         error=(
             'That box number was used while this draft was open. Your text is still here '
             'with a new box number. Check the title, then save when ready.'
@@ -311,22 +329,10 @@ def view_box(box_id):
 
 @app.route('/box/<box_id>/edit', methods=['GET', 'POST'])
 def edit_box(box_id):
-    content = get_box_content(box_id)
     payload = request.get_json(silent=True) if request.is_json else request.form
     if not hasattr(payload, 'get'):
         payload = {}
     is_new = request.args.get('new') == '1' or payload.get('is_new') == '1'
-    if is_new and content is not None:
-        if request.method == 'POST' and isinstance(payload.get('content'), str):
-            return _recover_new_box_draft(payload['content'])
-        return _error(
-            'Box number already in use',
-            'This box number has already been saved. Start a new box to get another number.',
-            409, url_for('new_box'),
-        )
-    if content is None and not is_new:
-        abort(404)
-
     if request.method == 'POST':
         if not isinstance(payload.get('content'), str):
             return _error(
@@ -334,20 +340,62 @@ def edit_box(box_id):
                 400, url_for('edit_box', box_id=box_id, **({'new': '1'} if is_new else {})),
             )
         submitted_content = payload['content']
+        check_revision = request.is_json and 'expected_revision' in payload
+        expected_revision = payload.get('expected_revision')
+        if check_revision and expected_revision is not None and (
+            not isinstance(expected_revision, str) or not re.fullmatch(r'[0-9a-f]{64}', expected_revision)
+        ):
+            return _error('Invalid revision', 'The saved version could not be identified. Reload the editor before saving.', 400)
         try:
-            save_box_content(box_id, submitted_content, create_only=is_new)
+            with _boxes_write_lock():
+                content = get_box_content(box_id)
+                if content is None and not is_new:
+                    abort(404)
+                if is_new and content is not None:
+                    return _recover_new_box_draft(submitted_content)
+                already_saved = content is not None and (
+                    _normalise_browser_newlines(content) == _normalise_browser_newlines(submitted_content)
+                )
+                if check_revision and expected_revision != _content_revision(content) and not already_saved:
+                    return jsonify(
+                        error='This box was changed elsewhere. Your text is still in the editor. Review the saved note before replacing it.',
+                        content=content, revision=_content_revision(content),
+                    ), 409
+                save_box_content(box_id, submitted_content, create_only=is_new)
+                persisted = get_box_content(box_id)
+                if request.is_json:
+                    return jsonify(
+                        redirect=url_for('view_box', box_id=box_id),
+                        edit_url=url_for('edit_box', box_id=box_id),
+                        box_id=box_id, box_number=_box_metadata(box_id, persisted)['number'],
+                        revision=_content_revision(persisted), content=persisted,
+                    )
         except FileExistsError:
             return _recover_new_box_draft(submitted_content)
-        if request.is_json:
-            return jsonify(redirect=url_for('view_box', box_id=box_id))
+        except OSError:
+            app.logger.exception('Could not save box contents.')
+            return _error(
+                'Save could not be confirmed',
+                'Could not confirm the save. Keep this page open and try again.',
+                500,
+            )
         return redirect(url_for('view_box', box_id=box_id))
 
+    content = get_box_content(box_id)
+    if is_new and content is not None:
+        return _error(
+            'Box number already in use',
+            'This box number has already been saved. Start a new box to get another number.',
+            409, url_for('new_box'),
+        )
+    if content is None and not is_new:
+        abort(404)
     if content is None:
         content = f'# {box_id}\n\n## Contents\n\n- \n\n## Location\n\n\n## Notes\n\n'
     modified = None if is_new else datetime.fromtimestamp(_box_file(box_id).stat().st_mtime)
     return render_template(
         'edit.html', box=_box_metadata(box_id, content, modified),
-        box_id=box_id, content=content, editor=editor_data(box_id, content),
+        box_id=box_id, content=content, editor=editor_data(box_id, content, is_new=is_new),
         is_new=is_new, error=None,
     )
 
@@ -733,8 +781,9 @@ def delete_photo(box_id, filename):
 @app.route('/box/<box_id>/delete', methods=['POST'])
 def delete_box(box_id):
     box_file = _box_file(box_id)
-    if box_file.is_file():
-        box_file.unlink()
+    with _boxes_write_lock():
+        if box_file.is_file():
+            box_file.unlink()
     box_photos_dir = PHOTOS_DIR / box_id
     if box_photos_dir.is_dir():
         for photo in box_photos_dir.iterdir():
