@@ -4,6 +4,10 @@
 
 No changes recorded yet.
 
+## [2.05] - 2026-09-21
+
+- Aligned the editor with the box view and site header, removing the sideways jump when opening or leaving Edit box.
+
 ## [2.04] - 2026-09-21
 
 - Existing box titles and notes save automatically after typing pauses, with saving and saved feedback. Done and other in-app links finish pending saves before leaving.
@@ -32,7 +36,8 @@ First documented release, collecting the updates shipped on this date:
 
 Existing box IDs, URLs, Markdown files, and original photos remain in place. Earlier changes are recorded in the repository's commit history.
 
-[Unreleased]: https://github.com/Tobybarnes/box-storage/compare/v2.04...HEAD
+[Unreleased]: https://github.com/Tobybarnes/box-storage/compare/v2.05...HEAD
+[2.05]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.05
 [2.04]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.04
 [2.03]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.03
 [2.02]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.02

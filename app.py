@@ -30,7 +30,7 @@ app.config['PUBLIC_BASE_URL'] = os.environ.get(
     'PUBLIC_BASE_URL', 'https://box-storage.fly.dev'
 ).rstrip('/')
 
-VERSION = "2.04"
+VERSION = "2.05"
 BUILD_DATE = "2026-09-21"
 
 
