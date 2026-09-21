@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Photo {{ photo_number }} · Box {{ box.number }} · Box Storage{% endblock %}
+{% block viewport %}width=device-width, initial-scale=1.0, viewport-fit=cover{% endblock %}
+{% block body_class %}photo-viewer-page{% endblock %}
+{% block main_class %}photo-viewer-main{% endblock %}
+{% block site_header %}
+<header class="photo-viewer-header">
+    <div class="photo-viewer-context">
+        <h1>Box {{ box.number }}</h1>
+        <p>Photo {{ photo_number }} of {{ photo_count }}</p>
+    </div>
+    <a class="button button-secondary photo-close" href="{{ url_for('view_box', box_id=box_id) }}" aria-label="Close photo and return to box {{ box.number }}"><span aria-hidden="true">×</span> Close</a>
+</header>
+{% endblock %}
+{% block content %}
+<figure class="photo-viewer-figure">
+    <img class="photo-viewer-image" src="{{ photo_url }}" alt="Photo {{ photo_number }} of box {{ box.number }}: {{ box.display_title }}">
+</figure>
+{% endblock %}
+{% block site_footer %}{% endblock %}

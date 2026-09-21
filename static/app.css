@@ -133,6 +133,16 @@ details[open] > .disclosure-action::before { content: "−"; }
 .photo-upload > .button { margin-top: 16px; }
 .photo-preview { display: flex; align-items: center; gap: 14px; margin-top: 18px; color: var(--muted); font-size: .8125rem; overflow-wrap: anywhere; }
 .photo-preview img { width: 72px; height: 72px; object-fit: cover; border-radius: 4px; }
+.photo-viewer-page { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.photo-viewer-header { --z-photo-controls: 2; position: sticky; top: 0; z-index: var(--z-photo-controls); display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 20px; padding: calc(12px + env(safe-area-inset-top, 0px)) max(18px, env(safe-area-inset-right, 0px)) 12px max(18px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--line); background: var(--canvas); }
+.photo-viewer-context { min-width: 0; }
+.photo-viewer-context h1 { font-size: 1rem; line-height: 1.4; letter-spacing: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.photo-viewer-context p { margin: 3px 0 0; color: var(--muted); font-size: .8125rem; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.photo-close { flex: 0 0 auto; min-width: 90px; }
+.photo-close > span { font-size: 1.25rem; line-height: 1; font-weight: 400; }
+.photo-viewer-page .photo-viewer-main { display: flex; flex: 1 1 auto; width: 100%; max-width: none; min-height: 0; margin: 0; padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.photo-viewer-figure { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-width: 0; min-height: 0; margin: 0; }
+.photo-viewer-image { width: 100%; height: 100%; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; touch-action: auto; }
 .box-label { padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); text-align: center; }
 .box-label h2 { margin: 0 0 14px; font-size: .9375rem; }
 .box-qr { width: 150px; height: 150px; margin: 0 auto 12px; }

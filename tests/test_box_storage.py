@@ -136,7 +136,7 @@ def test_reading_existing_collection_never_rewrites_text_or_photos(storage):
         assert snapshot(data_dir) == before, url
 
 
-def test_box_page_renders_markdown_and_keeps_existing_photo_url(storage):
+def test_box_page_renders_markdown_and_opens_photos_inside_the_app(storage):
     _, client, data_dir = storage
     before = snapshot(data_dir)
     response = client.get("/box/box-001")
@@ -144,8 +144,41 @@ def test_box_page_renders_markdown_and_keeps_existing_photo_url(storage):
     assert any(Document.text(node) == "Contents" for node in document.find("h2"))
     assert any(Document.text(node) == "Photos" for node in document.find("strong"))
     assert any("loose prints" in Document.text(node) for node in document.find("li"))
-    assert document.find("a", href="/box/box-001/photos/20260130_120000.jpg")
+    links = document.find("a", css_class="photo-link")
+    assert len(links) == 1
+    assert links[0]["attrs"].get("target") != "_blank"
+    viewer = client.get(links[0]["attrs"]["href"])
+    assert viewer.mimetype == "text/html"
     assert document.find("img", src="/box/box-001/photos/20260130_120000.jpg?thumbnail=1")
+    assert snapshot(data_dir) == before
+
+
+def test_full_size_photo_has_a_close_link_without_javascript(storage):
+    _, client, data_dir = storage
+    before = snapshot(data_dir)
+    original_url = "/box/box-001/photos/20260130_120000.jpg"
+    response = client.get(original_url + "/view")
+    assert response.status_code == 200
+    assert response.mimetype == "text/html"
+    document = Document(response.get_data(as_text=True))
+    assert document.find("img", src=original_url)
+    close_links = [node for node in document.find("a", href="/box/box-001")
+                   if "Close" in Document.text(node)]
+    assert close_links and close_links[0]["attrs"].get("target") != "_blank"
+    assert client.get(close_links[0]["attrs"]["href"]).status_code == 200
+    assert client.get(original_url).data == before["photos/box-001/20260130_120000.jpg"][0]
+    assert snapshot(data_dir) == before
+
+
+@pytest.mark.parametrize("url", [
+    "/box/box-999/photos/20260130_120000.jpg/view",
+    "/box/box-001/photos/missing.jpg/view",
+    "/box/box-001/photos/..%5Csecret.jpg/view",
+])
+def test_missing_or_invalid_photo_viewer_never_creates_data(storage, url):
+    _, client, data_dir = storage
+    before = snapshot(data_dir)
+    assert client.get(url).status_code == 404
     assert snapshot(data_dir) == before
 
 
@@ -403,7 +436,7 @@ def test_undecodable_thumbnail_keeps_original_available_and_unmodified(storage):
     assert original_response.status_code == 200
     assert original_response.data == original
     document = Document(client.get("/box/box-001").get_data(as_text=True))
-    assert document.find("a", href=url)
+    assert document.find("a", href=url + "/view")
     assert snapshot(data_dir) == before
 
 

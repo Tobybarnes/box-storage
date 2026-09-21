@@ -527,6 +527,23 @@ def get_photo(box_id, filename):
     return send_file(photo_path)
 
 
+@app.route('/box/<box_id>/photos/<filename>/view')
+def view_photo(box_id, filename):
+    content = get_box_content(box_id)
+    photo_path = _photo_file(box_id, filename)
+    photos = get_box_photos(box_id)
+    if content is None or not photo_path.is_file() or filename not in photos:
+        abort(404)
+    box = _box_metadata(
+        box_id, content, datetime.fromtimestamp(_box_file(box_id).stat().st_mtime)
+    )
+    return render_template(
+        'photo.html', box_id=box_id, box=box,
+        photo_url=url_for('get_photo', box_id=box_id, filename=filename),
+        photo_number=photos.index(filename) + 1, photo_count=len(photos),
+    )
+
+
 @app.route('/box/<box_id>/photos/<filename>/delete', methods=['POST'])
 def delete_photo(box_id, filename):
     photo_path = _photo_file(box_id, filename)

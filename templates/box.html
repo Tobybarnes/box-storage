@@ -21,7 +21,7 @@
             {% if photos %}
             <div class="photo-strip">
                 {% for photo in photos %}
-                <a class="photo-link" href="{{ url_for('get_photo', box_id=box_id, filename=photo) }}" target="_blank" rel="noopener" aria-label="Open photo {{ loop.index }} of box {{ box.number }} at full size in a new tab">
+                <a class="photo-link" href="{{ url_for('view_photo', box_id=box_id, filename=photo) }}" aria-label="Open photo {{ loop.index }} of box {{ box.number }} at full size">
                     <img src="{{ url_for('get_photo', box_id=box_id, filename=photo, thumbnail=1) }}" alt="Photo {{ loop.index }} of box {{ box.number }}" loading="lazy">
                 </a>
                 {% endfor %}
