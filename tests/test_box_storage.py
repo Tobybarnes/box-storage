@@ -162,6 +162,17 @@ def test_full_size_photo_has_a_close_link_without_javascript(storage):
     assert response.mimetype == "text/html"
     document = Document(response.get_data(as_text=True))
     assert document.find("img", src=original_url)
+    controls = document.find(css_class="photo-viewer-controls")
+    assert len(controls) == 1 and "hidden" in controls[0]["attrs"]
+    for action in ({"data-photo-rotate": "-1"}, {"data-photo-rotate": "1"}, {"data-photo-reset": None}):
+        buttons = [node for node in Document.within(controls[0], "button")
+                   if all(key in node["attrs"] and node["attrs"][key] == value for key, value in action.items())]
+        assert len(buttons) == 1 and buttons[0]["attrs"].get("type") == "button"
+        assert buttons[0]["attrs"].get("aria-label") or Document.text(buttons[0]).strip()
+    assert document.find(id="photo-rotation-status", role="status")
+    scripts = [node for node in document.find("script")
+               if urlsplit(node["attrs"].get("src", "")).path == "/static/photo-viewer.js"]
+    assert len(scripts) == 1 and client.get(scripts[0]["attrs"]["src"]).status_code == 200
     close_links = [node for node in document.find("a", href="/box/box-001")
                    if "Close" in Document.text(node)]
     assert close_links and close_links[0]["attrs"].get("target") != "_blank"

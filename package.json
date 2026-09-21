@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "esbuild static/editor.js --bundle --minify --format=iife --target=safari16.4,chrome110 --supported:template-literal=false --outfile=static/editor.bundle.js",
-    "test": "node --test tests/editor.test.mjs"
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@tiptap/core": "3.31.3",
