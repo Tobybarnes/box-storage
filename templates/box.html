@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ box.display_title }} · Box {{ box.number }}{% endblock %}
+{% block viewport %}width=device-width, initial-scale=1.0, viewport-fit=cover{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='photos.css', v=version) }}">{% endblock %}
 {% block content %}
 <a class="back-link" href="{{ url_for('index') }}"><span aria-hidden="true">←</span> All boxes</a>
 <div class="page-heading box-heading">
@@ -14,31 +16,69 @@
         <article class="markdown-content box-document" aria-label="Box contents">
             {% if rendered_content|trim %}{{ rendered_content|safe }}{% else %}<p class="muted">No notes yet. Edit this box to add what’s inside.</p>{% endif %}
         </article>
-        <section class="photos-section" aria-labelledby="photos-heading">
+        <section class="photos-section" id="photo-session" aria-labelledby="photos-heading" data-box-id="{{ box_id }}" data-box-number="{{ box.number }}" data-upload-url="{{ url_for('upload_photo', box_id=box_id) }}">
             <div class="section-heading">
-                <h2 id="photos-heading">Photos{% if photos %} <span class="count">{{ photos|length }}</span>{% endif %}</h2>
+                <h2 id="photos-heading">Photos <span class="count" id="photo-count">{{ photos|length }}</span></h2>
             </div>
-            {% if photos %}
-            <div class="photo-strip">
+            <div class="photo-strip" id="saved-photos" {% if not photos %}hidden{% endif %}>
                 {% for photo in photos %}
-                <a class="photo-link" href="{{ url_for('view_photo', box_id=box_id, filename=photo) }}" aria-label="Open photo {{ loop.index }} of box {{ box.number }} at full size">
+                <a class="photo-link" data-photo-filename="{{ photo }}" href="{{ url_for('view_photo', box_id=box_id, filename=photo) }}" aria-label="Open photo {{ loop.index }} of box {{ box.number }} at full size">
                     <img src="{{ photo_src(box_id, photo, thumbnail=True) }}" alt="Photo {{ loop.index }} of box {{ box.number }}" loading="lazy">
                 </a>
                 {% endfor %}
             </div>
-            {% else %}
-            <p class="muted small">A photo can help you recognise this box.</p>
-            {% endif %}
-            <details class="add-photo">
+            <p class="muted small" id="photo-empty" {% if photos %}hidden{% endif %}>A photo can help you recognise this box.</p>
+            <div id="photo-actions" hidden>
+                <div class="photo-actions">
+                    <button type="button" class="button button-primary" id="take-photos">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 5l1.5-2h5L16 5h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><circle cx="12" cy="12.5" r="4"/></svg>
+                        Take photos
+                    </button>
+                    <button type="button" class="button button-secondary" id="choose-photos">Choose photos</button>
+                </div>
+                <p class="field-hint">Take several shots, or choose photos from your library. Each photo uploads automatically.</p>
+                <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp" id="library-input" multiple hidden>
+                <input type="file" accept="image/*" capture="environment" id="camera-input" hidden>
+                <p id="photo-input-error" class="photo-input-error" role="alert" hidden></p>
+                <div id="upload-session" class="upload-session" hidden>
+                    <p id="upload-summary" class="upload-summary" role="status"></p>
+                    <p id="upload-storage-hint" class="field-hint" hidden></p>
+                    <ul id="upload-list" class="upload-list" aria-label="Photo uploads"></ul>
+                </div>
+            </div>
+            <details class="add-photo" id="photo-fallback">
                 <summary class="disclosure-action">Add a photo</summary>
                 <form action="{{ url_for('upload_photo', box_id=box_id) }}" method="post" enctype="multipart/form-data" class="photo-upload" id="photo-form">
                     <label for="photo-input">Choose a photo</label>
                     <input type="file" name="photo" accept="image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp" id="photo-input" aria-describedby="photo-help" required>
                     <p id="photo-help" class="field-hint">JPG, PNG, WebP or GIF, up to 16 MB.</p>
-                    <div class="photo-preview" id="photo-preview" hidden><img id="preview-img" alt="Selected photo preview"><span id="preview-name"></span></div>
                     <button type="submit" class="button button-primary" id="upload-button">Upload photo</button>
                 </form>
             </details>
+            <dialog id="camera-session" class="camera-session" aria-labelledby="camera-heading">
+                <div class="camera-shell">
+                    <header class="camera-header">
+                        <div><p class="camera-reference">Box {{ box.number }}</p><h2 id="camera-heading">{{ box.display_title }}</h2></div>
+                        <button type="button" class="button camera-done" id="camera-done">Done</button>
+                    </header>
+                    <div class="camera-stage" id="camera-stage">
+                        <video id="camera-video" autoplay muted playsinline aria-label="Camera preview"></video>
+                        <div class="camera-message" id="camera-message">
+                            <p id="camera-status" role="status">Opening camera…</p>
+                            <button type="button" class="button button-secondary" id="resume-camera" hidden>Resume camera</button>
+                            <button type="button" class="button button-secondary" id="native-camera" hidden>Use phone camera</button>
+                            <button type="button" class="button camera-library" id="camera-library" hidden>Choose photos</button>
+                        </div>
+                    </div>
+                    <div class="camera-footer">
+                        <p id="camera-upload-summary" class="camera-upload-summary" role="status">Photos upload as you go.</p>
+                        <p id="camera-storage-hint" class="camera-storage-hint" role="status" hidden></p>
+                        <ul id="camera-uploads" class="camera-uploads" aria-label="Photos from this session"></ul>
+                        <div class="camera-shutter-row"><button type="button" id="camera-shutter" class="camera-shutter" aria-label="Take photo" disabled><span aria-hidden="true"></span></button></div>
+                        <p id="camera-capture-status" class="camera-capture-status" role="status">Take a photo, then keep going.</p>
+                    </div>
+                </div>
+            </dialog>
         </section>
         <details class="manage-box">
             <summary>Manage this box</summary>
@@ -76,4 +116,4 @@
     </aside>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='photos.js') }}" defer></script>{% endblock %}
+{% block scripts %}<script type="module" src="{{ url_for('static', filename='photos.js', v=version) }}"></script>{% endblock %}

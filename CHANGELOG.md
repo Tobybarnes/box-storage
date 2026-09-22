@@ -4,6 +4,14 @@
 
 No changes recorded yet.
 
+## [2.06] - 2026-09-22
+
+- Added a camera session for each box: take several photos without reopening the camera, see captured thumbnails, and return with Done.
+- Photos upload automatically with progress and saved confirmation. The photo library accepts multiple selections, and the box gallery updates without a page reload.
+- Interrupted uploads retain a recovery copy on the same device when browser storage is available. Reopening that box resumes uploads; failed photos can be retried or downloaded. Retrying an upload cannot duplicate or overwrite a photo.
+- Added phone-camera and library fallbacks, camera pause/resume, and warnings when a pending photo has no recovery copy. Saved photo previews release their full image data to keep memory use down.
+- Existing notes and photo originals remain unchanged. Keep the app open until uploads finish; browser recovery storage is not a permanent backup, and uploads do not continue after the app closes. Library files support JPG, PNG, GIF and WebP up to 15 MB each; HEIC is not supported. The repeated-shot camera has been checked with a simulated camera; physical iPhone Home Screen testing remains outstanding.
+
 ## [2.05] - 2026-09-21
 
 - Aligned the editor with the box view and site header, removing the sideways jump when opening or leaving Edit box.
@@ -36,7 +44,8 @@ First documented release, collecting the updates shipped on this date:
 
 Existing box IDs, URLs, Markdown files, and original photos remain in place. Earlier changes are recorded in the repository's commit history.
 
-[Unreleased]: https://github.com/Tobybarnes/box-storage/compare/v2.05...HEAD
+[Unreleased]: https://github.com/Tobybarnes/box-storage/compare/v2.06...HEAD
+[2.06]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.06
 [2.05]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.05
 [2.04]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.04
 [2.03]: https://github.com/Tobybarnes/box-storage/releases/tag/v2.03

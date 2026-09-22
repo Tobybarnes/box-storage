@@ -30,8 +30,8 @@ app.config['PUBLIC_BASE_URL'] = os.environ.get(
     'PUBLIC_BASE_URL', 'https://box-storage.fly.dev'
 ).rstrip('/')
 
-VERSION = "2.05"
-BUILD_DATE = "2026-09-21"
+VERSION = "2.06"
+BUILD_DATE = "2026-09-22"
 
 
 @app.context_processor
@@ -268,12 +268,18 @@ def generate_qr_code(url):
 
 
 def _error(title, message, status=400, back_url=None):
-    if request.is_json:
-        return jsonify(error=message), status
+    if _wants_json_response():
+        return jsonify(ok=False, error=message), status
     return render_template(
         'error.html', title=title, message=message,
         back_url=back_url or url_for('index'),
     ), status
+
+
+def _wants_json_response():
+    return request.is_json or (
+        request.accept_mimetypes['application/json'] > request.accept_mimetypes['text/html']
+    )
 
 
 def _recover_new_box_draft(content):
@@ -499,35 +505,116 @@ def search():
 @app.route('/box/<box_id>/photos', methods=['POST'])
 def upload_photo(box_id):
     if get_box_content(box_id) is None:
-        abort(404)
+        return _error('Box not found', 'This box could not be found. Your photo has not been uploaded.', 404)
     file = request.files.get('photo')
     if file is None or not file.filename:
+        if _wants_json_response():
+            return _error('Choose a photo', 'Choose a photo to upload.', 400)
         return redirect(url_for('view_box', box_id=box_id))
     if not allowed_file(file.filename):
         return _error(
             'Choose an image', 'Use a JPG, PNG, GIF or WebP photo.',
             400, url_for('view_box', box_id=box_id),
         )
-    box_photos_dir = PHOTOS_DIR / box_id
-    box_photos_dir.mkdir(exist_ok=True)
-    extension = file.filename.rsplit('.', 1)[1].lower()
-    # Exclusive creation guarantees a new upload cannot overwrite an old photo.
-    while True:
-        photo_path = box_photos_dir / f'{uuid4().hex}.{extension}'
-        try:
-            photo_file = photo_path.open('xb')
-            break
-        except FileExistsError:
-            continue
+    upload_id = request.form.get('upload_id', '')
+    if not upload_id and not _wants_json_response():
+        upload_id = uuid4().hex
+    if not re.fullmatch(r'(?:[0-9a-f]{32}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})', upload_id, re.IGNORECASE):
+        return _error('Photo could not be identified', 'Choose the photo again before uploading.', 400)
+    upload_id = upload_id.replace('-', '').lower()
     try:
-        with photo_file:
-            file.save(photo_file)
-            photo_file.flush()
-            os.fsync(photo_file.fileno())
-    except Exception:
-        photo_path.unlink(missing_ok=True)
-        raise
+        filename = _save_uploaded_photo(box_id, file, upload_id)
+    except PhotoUploadError as error:
+        return _error('Photo could not be saved', str(error), error.status, url_for('view_box', box_id=box_id))
+    except OSError:
+        app.logger.exception('Could not save a photo upload.')
+        return _error(
+            'Photo could not be saved', 'The photo could not be saved. Please retry the upload.',
+            500, url_for('view_box', box_id=box_id),
+        )
+    if _wants_json_response():
+        return jsonify(ok=True, photo={
+            'filename': filename,
+            'url': photo_src(box_id, filename),
+            'thumbnail_url': photo_src(box_id, filename, thumbnail=True),
+            'view_url': url_for('view_photo', box_id=box_id, filename=filename),
+        })
     return redirect(url_for('view_box', box_id=box_id))
+
+
+class PhotoUploadError(ValueError):
+    def __init__(self, message, status=422):
+        super().__init__(message)
+        self.status = status
+
+
+def _uploaded_photo_extension(path):
+    """Check the image without re-encoding or removing camera metadata."""
+    formats = {'JPEG': 'jpg', 'MPO': 'jpg', 'PNG': 'png', 'GIF': 'gif', 'WEBP': 'webp'}
+    try:
+        with Image.open(path) as image:
+            extension = formats.get(image.format)
+            if extension is None:
+                raise PhotoUploadError('Use a JPG, PNG, GIF or WebP photo.')
+            image.verify()
+            return extension
+    except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as error:
+        raise PhotoUploadError('This photo could not be opened. Choose a JPG, PNG, GIF or WebP photo.') from error
+
+
+def _photo_digest(path):
+    digest = sha256()
+    with path.open('rb') as source:
+        for chunk in iter(lambda: source.read(128 * 1024), b''):
+            digest.update(chunk)
+    return digest.digest()
+
+
+def _save_uploaded_photo(box_id, file, upload_id):
+    """Publish complete original bytes once, even after a lost response or retry."""
+    temporary_name = None
+    try:
+        # Pending files live outside every box gallery. A reader can only see the
+        # final filename after all bytes are written, validated and flushed.
+        with tempfile.NamedTemporaryFile(
+            mode='wb', prefix='.photo-upload-', suffix='.tmp', dir=PHOTOS_DIR, delete=False
+        ) as temporary:
+            temporary_name = temporary.name
+            file.save(temporary)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+        staged = Path(temporary_name)
+        extension = _uploaded_photo_extension(staged)
+        # This cross-worker lock also coordinates with box deletion. The upload
+        # ID is encoded in the filename, so retry safety needs no separate index
+        # that could fall out of sync with the saved photograph.
+        with _boxes_write_lock():
+            if not _box_file(box_id).is_file():
+                raise PhotoUploadError('This box could not be found. Your photo has not been uploaded.', 404)
+            box_photos_dir = PHOTOS_DIR / box_id
+            box_photos_dir.mkdir(exist_ok=True)
+            existing = list(box_photos_dir.glob(f'upload-{upload_id}.*'))
+            if existing:
+                if len(existing) != 1 or not existing[0].is_file():
+                    raise OSError('The saved upload could not be identified.')
+                if _photo_digest(existing[0]) != _photo_digest(staged):
+                    raise PhotoUploadError(
+                        'A different photo was already saved with this upload ID. Choose this photo again.', 409
+                    )
+                filename = existing[0].name
+            else:
+                filename = f'upload-{upload_id}.{extension}'
+                # A hard link publishes atomically and can never replace an original.
+                os.link(staged, box_photos_dir / filename)
+            descriptor = os.open(box_photos_dir, os.O_RDONLY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            return filename
+    finally:
+        if temporary_name is not None:
+            Path(temporary_name).unlink(missing_ok=True)
 
 
 def _photo_file(box_id, filename):
